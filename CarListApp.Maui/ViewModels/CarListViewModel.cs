@@ -13,15 +13,18 @@ namespace CarListApp.Maui.ViewModels
 {
     public partial class CarListViewModel : BaseViewModel
     {
-        private readonly CarService carService;
+        private readonly Services.CarService carService;
 
         public ObservableCollection<Car> Cars { get; private set; } = new ();
 
-        public CarListViewModel(CarService carService)
+        public CarListViewModel(Services.CarService carService)
         {
-            Title = "Test";
+            Title = "Car List";
             this.carService = carService;
         }
+
+        [ObservableProperty]
+        bool isRefreshing;
 
         [RelayCommand]
         async Task GetCarList()
@@ -48,6 +51,7 @@ namespace CarListApp.Maui.ViewModels
             finally
             {
                 IsLoading = false;
+                IsRefreshing = false;
             }
         }
     }
