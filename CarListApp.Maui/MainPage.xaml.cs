@@ -10,6 +10,7 @@ namespace CarListApp.Maui
         {
             InitializeComponent();
             BindingContext = carListViewModel;
+
         }
 
 
