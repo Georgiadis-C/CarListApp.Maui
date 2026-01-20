@@ -18,11 +18,20 @@ namespace CarListApp.Maui
                     fonts.AddFont("OpenSans-Regular.ttf", "OpenSansRegular");
                     fonts.AddFont("OpenSans-Semibold.ttf", "OpenSansSemibold");
                 });
-            builder.Services.AddSingleton<CarService>();
+
+            string dbPath = Path.Combine(FileSystem.AppDataDirectory, "cars.db3");
+            builder.Services.AddSingleton(s => ActivatorUtilities.CreateInstance<CarService>(s, dbPath));
+
+
             builder.Services.AddSingleton<CarListViewModel>();
-            builder.Services.AddSingleton<MainPage>();
             builder.Services.AddTransient<CarDetailsViewModel>();
+
+
             builder.Services.AddTransient<CarDetailsPage>();
+            builder.Services.AddSingleton<MainPage>();
+
+
+
 
 #if DEBUG
             builder.Logging.AddDebug();
