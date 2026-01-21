@@ -29,6 +29,7 @@ namespace CarListApp.Maui
 
             builder.Services.AddTransient<CarDetailsPage>();
             builder.Services.AddSingleton<MainPage>();
+            builder.Services.AddSingleton<App>();
 
 
 

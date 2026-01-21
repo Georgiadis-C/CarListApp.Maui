@@ -2,9 +2,8 @@
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
-using System.Text;
-using System.Text.Json;
 using System.Threading.Tasks;
+using Android.Service.Carrier;
 using CarListApp.Maui.Models;
 using CarListApp.Maui.Services;
 using CarListApp.Maui.Views;
@@ -21,10 +20,19 @@ namespace CarListApp.Maui.ViewModels
         public CarListViewModel()
         {
             Title = "Car List";
+            GetCarList().Wait();
         }
+
 
         [ObservableProperty]
         bool isRefreshing;
+        [ObservableProperty]
+        string make;
+        [ObservableProperty]
+        string model;
+        [ObservableProperty]
+        string vin;
+
 
         [RelayCommand]
         async Task GetCarList()
@@ -44,9 +52,9 @@ namespace CarListApp.Maui.ViewModels
             }
             catch (Exception ex)
             {
+                await Shell.Current.DisplayAlertAsync("Error", "Failed to retrieve list of cars. ", "OK");
                 Debug.WriteLine($"Unable to get car list: {ex.Message}");
                 throw;
-                await Shell.Current.DisplayAlert("Error", "Failed to retrieve list of cars. ", "OK");
 
             }
             finally
@@ -57,15 +65,87 @@ namespace CarListApp.Maui.ViewModels
         }
 
         [RelayCommand]
-        async Task GetCarDetails(Car car)
+        async Task GetCarDetails(int id)
         {
-            if (car == null)
+            if (id == 0)
                 return;
 
-            await Shell.Current.GoToAsync(nameof(CarDetailsPage), true, new Dictionary <string, object>
-            {
-                {nameof(Car), car },
-            });
+            await Shell.Current.GoToAsync($"{nameof(CarDetailsPage)}?Id={id}", true);
         }
+
+        [RelayCommand]
+        async Task AddCar()
+        {
+            if(string.IsNullOrEmpty(Make) || string.IsNullOrEmpty(Model) || string.IsNullOrEmpty(Vin))
+            {
+                await Shell.Current.DisplayAlertAsync("Invalid data", "Please fill in all fields to add a new car.", "OK");
+                return;
+            }
+            var car = new Car()
+            {
+                Make = Make,
+                Model = Model,
+                Vin = Vin
+            };
+
+            App.CarService.AddCar(car);
+            await Shell.Current.DisplayAlertAsync("Info", App.CarService.StatusMessage, "OK");
+
+            Make = string.Empty;
+            Model = string.Empty;
+            Vin = string.Empty;
+
+            await GetCarList();
+        }
+
+        [RelayCommand]
+        async Task DeleteCar(int id)
+        {
+            if (id == 0)
+            {
+                await Shell.Current.DisplayAlertAsync("Invalid Record", "Please try again.", "OK");
+                return;
+            }
+            var result = App.CarService.DeleteCar(id);
+            if (result == 0)
+            {
+                await Shell.Current.DisplayAlertAsync("Invalid Data", "Please insert vaild data.", "OK");
+            }
+            else
+            {
+                await Shell.Current.DisplayAlertAsync("Info", App.CarService.StatusMessage, "OK");
+                await GetCarList();
+            }
+        }
+
+        [RelayCommand]
+        async Task UpdateCar(int Id)
+        {
+            if (Id <= 0)
+            {
+                return;
+            }
+            var car = Cars.FirstOrDefault(c => c.Id == Id);
+            if(car != null)
+            {
+                Id = car.Id;
+                Make = car.Make;
+                Model = car.Model;
+                Vin = car.Vin;
+
+            }
+        }
+
+        [RelayCommand]
+        public async Task ClearForm(int Id)
+        {
+            Id = 0;
+            Make = string.Empty;
+            Model = string.Empty;
+            Vin = string.Empty;
+
+            await Task.CompletedTask;
+        }
+
     }
 }
