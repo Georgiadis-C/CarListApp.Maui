@@ -143,6 +143,7 @@ namespace CarListApp.Maui.ViewModels
             Make = string.Empty;
             Model = string.Empty;
             Vin = string.Empty;
+            //fake commit to test git changes
 
             await Task.CompletedTask;
         }
