@@ -9,12 +9,15 @@ namespace CarListApp.Maui.ViewModels
 {
     public partial class CarListViewModel : BaseViewModel
     {
+        const string editButtonText = "Update Car";
+        const string createButtonText = "Add Car";
 
         public ObservableCollection<Car> Cars { get; private set; } = new();
 
         public CarListViewModel()
         {
             Title = "Car List";
+            AddEditButtonText = createButtonText;
             GetCarList().Wait();
         }
 
@@ -27,6 +30,10 @@ namespace CarListApp.Maui.ViewModels
         string model;
         [ObservableProperty]
         string vin;
+        [ObservableProperty]
+        string addEditButtonText;
+        [ObservableProperty]
+        int carId;
 
 
         [RelayCommand]
@@ -69,11 +76,11 @@ namespace CarListApp.Maui.ViewModels
         }
 
         [RelayCommand]
-        async Task AddCar()
+        async Task SaveCar()
         {
-            if(string.IsNullOrEmpty(Make) || string.IsNullOrEmpty(Model) || string.IsNullOrEmpty(Vin))
+            if (string.IsNullOrEmpty(Make) || string.IsNullOrEmpty(Model) || string.IsNullOrEmpty(Vin))
             {
-                await Shell.Current.DisplayAlertAsync("Invalid data", "Please fill in all fields to add a new car.", "OK");
+                await Shell.Current.DisplayAlertAsync("Invalid data", "Please insert valid data.", "OK");
                 return;
             }
             var car = new Car()
@@ -81,16 +88,23 @@ namespace CarListApp.Maui.ViewModels
                 Make = Make,
                 Model = Model,
                 Vin = Vin
-            };
+            }; 
 
-            App.CarService.AddCar(car);
-            await Shell.Current.DisplayAlertAsync("Info", App.CarService.StatusMessage, "OK");
-
-            Make = string.Empty;
-            Model = string.Empty;
-            Vin = string.Empty;
+            if (CarId != 0)
+            {
+                car.Id = CarId;
+                App.CarService.UpdateCar(car);
+                await Shell.Current.DisplayAlertAsync("Info", App.CarService.StatusMessage, "OK");
+            }
+            else
+            {
+                App.CarService.AddCar(car);
+                await Shell.Current.DisplayAlertAsync("Info", App.CarService.StatusMessage, "OK");
+            }
 
             await GetCarList();
+            await ClearForm();
+
         }
 
         [RelayCommand]
@@ -114,31 +128,33 @@ namespace CarListApp.Maui.ViewModels
         }
 
         [RelayCommand]
-        async Task UpdateCar(int Id)
+        async Task UpdateCar(int id)
         {
-            if (Id <= 0)
-            {
-                return;
-            }
-            var car = Cars.FirstOrDefault(c => c.Id == Id);
-            if(car != null)
-            {
-                Id = car.Id;
-                Make = car.Make;
-                Model = car.Model;
-                Vin = car.Vin;
-
-            }
+            addEditButtonText = editButtonText;
         }
 
         [RelayCommand]
-        public async Task ClearForm(int Id)
+        async Task SetEditMode(int id)
         {
-            Id = 0;
+            AddEditButtonText = editButtonText;
+            CarId = id;
+            var car = App.CarService.GetCar(id);
+            Make = car.Make;
+            Model = car.Model;
+            Vin = car.Vin;
+
+
+        }
+
+
+        [RelayCommand]
+        public async Task ClearForm()
+        {
+            AddEditButtonText = createButtonText;
+            CarId = 0;
             Make = string.Empty;
             Model = string.Empty;
             Vin = string.Empty;
-            //fake commit to test git changes
 
             await Task.CompletedTask;
         }

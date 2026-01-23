@@ -1,3 +1,6 @@
 <Solution>
-  <Project Path="CarListApp.Maui/CarListApp.Maui.csproj" />
+  <Project Path="CarListApp.Api/CarListApp.Api.csproj" Id="bafc0639-8752-474d-9d4c-0b8e03053074" />
+  <Project Path="CarListApp.Maui/CarListApp.Maui.csproj">
+    <Deploy Solution="Debug|*" />
+  </Project>
 </Solution>
