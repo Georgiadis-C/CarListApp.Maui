@@ -1,5 +1,6 @@
 
 using Microsoft.Data.Sqlite;
+using Microsoft.EntityFrameworkCore;
 
 namespace CarListApp.Api
 {
@@ -20,7 +21,7 @@ namespace CarListApp.Api
             });
             var dbPath = Path.Join(Directory.GetCurrentDirectory(), "carlist.db");
             var conn = new SqliteConnection($"Data Source={dbPath}");
-            builder.Services.AddDbContext
+            builder.Services.AddDbContext<CarListDbContext>(o => o.UseSqlite(conn));
             var app = builder.Build();
 
             // Configure the HTTP request pipeline.
