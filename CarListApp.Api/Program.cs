@@ -22,15 +22,18 @@ namespace CarListApp.Api
                 o.AddPolicy("AllowAll", a => a.AllowAnyHeader().AllowAnyOrigin().AllowAnyMethod());
             });
             var dbPath = Path.Join(Directory.GetCurrentDirectory(), "carlist.db");
-            var conn = new SqliteConnection($"Data Source={dbPath}");
+            var conn = new SqliteConnection("Data Source=carlist.db");
             builder.Services.AddDbContext<CarListDbContext>(o => o.UseSqlite(conn));
             var app = builder.Build();
+
+            app.MapOpenApi();
+            app.MapScalarApiReference();
+
 
             // Configure the HTTP request pipeline.
             if (app.Environment.IsDevelopment())
             {
-                app.MapOpenApi();
-                app.MapScalarApiReference();
+
             }
 
             app.UseHttpsRedirection();
