@@ -1,6 +1,7 @@
 ﻿using System.Collections.ObjectModel;
 using System.Diagnostics;
 using CarListApp.Maui.Models;
+using CarListApp.Maui.Services;
 using CarListApp.Maui.Views;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -11,14 +12,14 @@ namespace CarListApp.Maui.ViewModels
     {
         const string editButtonText = "Update Car";
         const string createButtonText = "Add Car";
-
+        private readonly CarApiService carApiService;
         public ObservableCollection<Car> Cars { get; private set; } = new();
 
-        public CarListViewModel()
+        public CarListViewModel(CarApiService carApiService)
         {
             Title = "Car List";
             AddEditButtonText = createButtonText;
-            GetCarList().Wait();
+           this.carApiService = carApiService;
         }
 
 
@@ -44,9 +45,9 @@ namespace CarListApp.Maui.ViewModels
             {
                 IsLoading = true;
                 if (Cars.Any()) Cars.Clear();
-
-                var cars = App.CarService.GetCars();
-
+                var cars = new List<Car>();
+                //var cars = App.CarDatabaseService.GetCars();
+                cars = await carApiService.GetCars();
                 foreach (var car in cars)
                 {
                     Cars.Add(car);
@@ -93,13 +94,13 @@ namespace CarListApp.Maui.ViewModels
             if (CarId != 0)
             {
                 car.Id = CarId;
-                App.CarService.UpdateCar(car);
-                await Shell.Current.DisplayAlertAsync("Info", App.CarService.StatusMessage, "OK");
+                App.CarDatabaseService.UpdateCar(car);
+                await Shell.Current.DisplayAlertAsync("Info", App.CarDatabaseService.StatusMessage, "OK");
             }
             else
             {
-                App.CarService.AddCar(car);
-                await Shell.Current.DisplayAlertAsync("Info", App.CarService.StatusMessage, "OK");
+                App.CarDatabaseService.AddCar(car);
+                await Shell.Current.DisplayAlertAsync("Info", App.CarDatabaseService.StatusMessage, "OK");
             }
 
             await GetCarList();
@@ -115,14 +116,14 @@ namespace CarListApp.Maui.ViewModels
                 await Shell.Current.DisplayAlertAsync("Invalid Record", "Please try again.", "OK");
                 return;
             }
-            var result = App.CarService.DeleteCar(id);
+            var result = App.CarDatabaseService.DeleteCar(id);
             if (result == 0)
             {
                 await Shell.Current.DisplayAlertAsync("Invalid Data", "Please insert vaild data.", "OK");
             }
             else
             {
-                await Shell.Current.DisplayAlertAsync("Info", App.CarService.StatusMessage, "OK");
+                await Shell.Current.DisplayAlertAsync("Info", App.CarDatabaseService.StatusMessage, "OK");
                 await GetCarList();
             }
         }
@@ -138,7 +139,7 @@ namespace CarListApp.Maui.ViewModels
         {
             AddEditButtonText = editButtonText;
             CarId = id;
-            var car = App.CarService.GetCar(id);
+            var car = App.CarDatabaseService.GetCar(id);
             Make = car.Make;
             Model = car.Model;
             Vin = car.Vin;

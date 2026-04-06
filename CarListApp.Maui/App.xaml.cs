@@ -6,15 +6,15 @@ namespace CarListApp.Maui
 {
     public partial class App : Application
     {
-        public static CarService CarService { get; private set; }  
-        public App(CarService carService)
+        public static CarDatabaseService CarDatabaseService { get; private set; }  
+        public App(CarDatabaseService carDatabaseService)
         {
             InitializeComponent();
 
             MainPage = new AppShell();
             AppDomain.CurrentDomain.UnhandledException += OnUnhandledException;
             TaskScheduler.UnobservedTaskException += OnUnobservedTaskException;
-            CarService = carService;
+            CarDatabaseService = carDatabaseService;
         }
 
         private void OnUnhandledException(object sender, UnhandledExceptionEventArgs e)
