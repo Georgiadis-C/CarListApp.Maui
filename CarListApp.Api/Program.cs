@@ -1,7 +1,8 @@
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Scalar.AspNetCore;
-using CarListApp.Api; // Βεβαιώσου ότι το namespace είναι το σωστό για το δικό σου project
+using CarListApp.Api;
+using Microsoft.AspNetCore.Identity; // Βεβαιώσου ότι το namespace είναι το σωστό για το δικό σου project
 
 namespace CarListApp.Api
 {
@@ -28,6 +29,10 @@ namespace CarListApp.Api
             var dbPath = Path.Join(Directory.GetCurrentDirectory(), "carlist.db");
             var conn = new SqliteConnection($"Data Source={dbPath}");
             builder.Services.AddDbContext<CarListDbContext>(o => o.UseSqlite(conn));
+
+            builder.Services.AddIdentityCore<IdentityUser>()
+                .AddRoles<IdentityRole>()
+                .AddEntityFrameworkStores<CarListDbContext>();
 
             var app = builder.Build();
 
