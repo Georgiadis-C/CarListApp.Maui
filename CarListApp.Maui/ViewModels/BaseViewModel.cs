@@ -1,22 +1,18 @@
-﻿using System.ComponentModel;
+﻿using CommunityToolkit.Mvvm.ComponentModel;
+using System.ComponentModel;
 using System.Runtime.CompilerServices;
-using CarListApp.Maui.Models;
-using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace CarListApp.Maui.ViewModels
 {
+    public partial class BaseViewModel : ObservableObject
+    {
+        [ObservableProperty]
+        string title;
 
-    
-        public partial class BaseViewModel : ObservableObject
-        {
-            [ObservableProperty]
-            string title;
+        [ObservableProperty]
+        [NotifyPropertyChangedFor(nameof(IsNotLoading))]
+        bool isLoading;
 
-            [ObservableProperty]
-            [NotifyPropertyChangedFor(nameof(IsNotLoading))]
-            bool isLoading;
-
-            public bool IsNotLoading => !isLoading;
-        
-        }
+        public bool IsNotLoading => !isLoading;
+    }
 }

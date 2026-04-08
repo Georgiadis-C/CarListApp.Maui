@@ -1,10 +1,11 @@
-﻿using System.Collections.ObjectModel;
-using System.Diagnostics;
-using CarListApp.Maui.Models;
+﻿using CarListApp.Maui.Models;
 using CarListApp.Maui.Services;
 using CarListApp.Maui.Views;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Newtonsoft.Json;
+using System.Collections.ObjectModel;
+using System.Diagnostics;
 
 namespace CarListApp.Maui.ViewModels
 {
@@ -13,15 +14,17 @@ namespace CarListApp.Maui.ViewModels
         const string editButtonText = "Update Car";
         const string createButtonText = "Add Car";
         private readonly CarApiService carApiService;
+        NetworkAccess accessType = Connectivity.Current.NetworkAccess;
+        string message = string.Empty;
+
         public ObservableCollection<Car> Cars { get; private set; } = new();
 
         public CarListViewModel(CarApiService carApiService)
         {
             Title = "Car List";
             AddEditButtonText = createButtonText;
-           this.carApiService = carApiService;
+            this.carApiService = carApiService;
         }
-
 
         [ObservableProperty]
         bool isRefreshing;
@@ -36,7 +39,6 @@ namespace CarListApp.Maui.ViewModels
         [ObservableProperty]
         int carId;
 
-
         [RelayCommand]
         async Task GetCarList()
         {
@@ -44,21 +46,27 @@ namespace CarListApp.Maui.ViewModels
             try
             {
                 IsLoading = true;
-                if (Cars.Any()) Cars.Clear();
-                var cars = new List<Car>();
-                //var cars = App.CarDatabaseService.GetCars();
-                cars = await carApiService.GetCars();
-                foreach (var car in cars)
+                if (Cars.Any()) Cars.Clear(); // Καθαρίζουμε τη λίστα πριν τη γεμίσουμε
+
+                var cars = await carApiService.GetCars();
+
+                // Εδώ είναι η σημαντική διόρθωση για να μη "σκάει" το app
+                if (cars != null && cars.Count > 0)
                 {
-                    Cars.Add(car);
+                    foreach (var car in cars)
+                    {
+                        Cars.Add(car);
+                    }
+                }
+                else
+                {
+                    await Shell.Current.DisplayAlertAsync("Info", "No cars found or connection failed", "OK");
                 }
             }
             catch (Exception ex)
             {
-                await Shell.Current.DisplayAlertAsync("Error", "Failed to retrieve list of cars. ", "OK");
-                Debug.WriteLine($"Unable to get car list: {ex.Message}");
-                throw;
-
+                Debug.WriteLine($"Unable to get cars: {ex.Message}");
+                await Shell.Current.DisplayAlertAsync("Error", "Failed to retrieve list of cars", "OK");
             }
             finally
             {
@@ -70,8 +78,7 @@ namespace CarListApp.Maui.ViewModels
         [RelayCommand]
         async Task GetCarDetails(int id)
         {
-            if (id == 0)
-                return;
+            if (id == 0) return;
 
             await Shell.Current.GoToAsync($"{nameof(CarDetailsPage)}?Id={id}", true);
         }
@@ -81,31 +88,48 @@ namespace CarListApp.Maui.ViewModels
         {
             if (string.IsNullOrEmpty(Make) || string.IsNullOrEmpty(Model) || string.IsNullOrEmpty(Vin))
             {
-                await Shell.Current.DisplayAlertAsync("Invalid data", "Please insert valid data.", "OK");
+                await ShowAlert("Please insert valid data");
                 return;
             }
-            var car = new Car()
+
+            var car = new Car
             {
+                Id = CarId,
                 Make = Make,
                 Model = Model,
                 Vin = Vin
-            }; 
+            };
 
             if (CarId != 0)
             {
-                car.Id = CarId;
-                App.CarDatabaseService.UpdateCar(car);
-                await Shell.Current.DisplayAlertAsync("Info", App.CarDatabaseService.StatusMessage, "OK");
+                if (accessType == NetworkAccess.Internet)
+                {
+                    await carApiService.UpdateCar(CarId, car);
+                    message = carApiService.StatusMessage;
+                }
+                else
+                {
+                    App.CarDatabaseService.UpdateCar(car);
+                    message = App.CarDatabaseService.StatusMessage;
+                }
             }
             else
             {
-                App.CarDatabaseService.AddCar(car);
-                await Shell.Current.DisplayAlertAsync("Info", App.CarDatabaseService.StatusMessage, "OK");
-            }
+                if (accessType == NetworkAccess.Internet)
+                {
+                    await carApiService.AddCar(car);
+                    message = carApiService.StatusMessage;
+                }
+                else
+                {
+                    App.CarDatabaseService.AddCar(car);
+                    message = App.CarDatabaseService.StatusMessage;
+                }
 
+            }
+            await ShowAlert(message);
             await GetCarList();
             await ClearForm();
-
         }
 
         [RelayCommand]
@@ -113,25 +137,29 @@ namespace CarListApp.Maui.ViewModels
         {
             if (id == 0)
             {
-                await Shell.Current.DisplayAlertAsync("Invalid Record", "Please try again.", "OK");
+                await ShowAlert("Please try again");
                 return;
             }
-            var result = App.CarDatabaseService.DeleteCar(id);
-            if (result == 0)
+
+            if (accessType == NetworkAccess.Internet)
             {
-                await Shell.Current.DisplayAlertAsync("Invalid Data", "Please insert vaild data.", "OK");
+                await carApiService.DeleteCar(id);
+                message = carApiService.StatusMessage;
             }
             else
             {
-                await Shell.Current.DisplayAlertAsync("Info", App.CarDatabaseService.StatusMessage, "OK");
-                await GetCarList();
+                App.CarDatabaseService.DeleteCar(id);
+                message = App.CarDatabaseService.StatusMessage;
             }
+            await ShowAlert(message);
+            await GetCarList();
         }
 
         [RelayCommand]
         async Task UpdateCar(int id)
         {
-            addEditButtonText = editButtonText;
+            AddEditButtonText = editButtonText;
+            return;
         }
 
         [RelayCommand]
@@ -139,26 +167,34 @@ namespace CarListApp.Maui.ViewModels
         {
             AddEditButtonText = editButtonText;
             CarId = id;
-            var car = App.CarDatabaseService.GetCar(id);
+            Car car;
+            if (accessType == NetworkAccess.Internet)
+            {
+                car = await carApiService.GetCar(CarId);
+            }
+            else
+            {
+                car = App.CarDatabaseService.GetCar(CarId);
+            }
+
             Make = car.Make;
             Model = car.Model;
             Vin = car.Vin;
-
-
         }
 
-
         [RelayCommand]
-        public async Task ClearForm()
+        async Task ClearForm()
         {
             AddEditButtonText = createButtonText;
             CarId = 0;
             Make = string.Empty;
             Model = string.Empty;
             Vin = string.Empty;
-
-            await Task.CompletedTask;
         }
 
+        private async Task ShowAlert(string message)
+        {
+            await Shell.Current.DisplayAlert("Info", message, "Ok");
+        }
     }
 }
