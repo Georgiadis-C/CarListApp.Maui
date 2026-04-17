@@ -2,91 +2,128 @@ using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Scalar.AspNetCore;
 using CarListApp.Api;
-using Microsoft.AspNetCore.Identity; // Βεβαιώσου ότι το namespace είναι το σωστό για το δικό σου project
+using Microsoft.AspNetCore.Identity;
 
-namespace CarListApp.Api
+var builder = WebApplication.CreateBuilder(args);
+
+// --- ΡΥΘΜΙΣΕΙΣ ΥΠΗΡΕΣΙΩΝ ---
+builder.WebHost.UseUrls("http://0.0.0.0:5069");
+
+builder.Services.AddAuthorization();
+builder.Services.AddOpenApi();
+
+builder.Services.AddCors(o =>
 {
-    public class Program
+    o.AddPolicy("AllowAll", a => a.AllowAnyHeader().AllowAnyOrigin().AllowAnyMethod());
+});
+
+// Ρύθμιση SQLite
+var dbPath = Path.Join(Directory.GetCurrentDirectory(), "carlist.db");
+var conn = new SqliteConnection($"Data Source={dbPath}");
+builder.Services.AddDbContext<CarListDbContext>(o => o.UseSqlite(conn));
+
+// Ρύθμιση Identity
+builder.Services.AddIdentityCore<IdentityUser>()
+    .AddRoles<IdentityRole>()
+    .AddEntityFrameworkStores<CarListDbContext>();
+
+var app = builder.Build();
+
+// --- ΑΥΤΟΜΑΤΟ SETUP ΒΑΣΗΣ & ADMIN (SEEDING) ---
+using (var scope = app.Services.CreateScope())
+{
+    var services = scope.ServiceProvider;
+    try
     {
-        public static void Main(string[] args)
+        var context = services.GetRequiredService<CarListDbContext>();
+        var userManager = services.GetRequiredService<UserManager<IdentityUser>>();
+
+        // Το EnsureCreated φτιάχνει τους πίνακες αμέσως αν λείπουν
+        context.Database.EnsureCreated();
+
+        var adminEmail = "admin@localhost.com";
+        // Χρησιμοποιούμε Task.Run για να εκτελεστεί σωστά η async μέθοδος στην εκκίνηση
+        var user = Task.Run(() => userManager.FindByNameAsync(adminEmail)).Result;
+
+        if (user == null)
         {
-            var builder = WebApplication.CreateBuilder(args);
+            var adminUser = new IdentityUser { UserName = adminEmail, Email = adminEmail };
+            var result = Task.Run(() => userManager.CreateAsync(adminUser, "P@ssword1")).Result;
 
-            // ΔΙΟΡΘΩΣΗ 1: Λέμε στο API να "ακούει" σε όλες τις διευθύνσεις (0.0.0.0) 
-            // και όχι μόνο στο localhost, ώστε να το βλέπει ο Emulator.
-            builder.WebHost.UseUrls("http://0.0.0.0:5069");
-
-            // Add services to the container.
-            builder.Services.AddAuthorization();
-            builder.Services.AddOpenApi();
-
-            builder.Services.AddCors(o =>
+            if (result.Succeeded)
             {
-                o.AddPolicy("AllowAll", a => a.AllowAnyHeader().AllowAnyOrigin().AllowAnyMethod());
-            });
-
-            // Ρύθμιση της βάσης δεδομένων
-            var dbPath = Path.Join(Directory.GetCurrentDirectory(), "carlist.db");
-            var conn = new SqliteConnection($"Data Source={dbPath}");
-            builder.Services.AddDbContext<CarListDbContext>(o => o.UseSqlite(conn));
-
-            builder.Services.AddIdentityCore<IdentityUser>()
-                .AddRoles<IdentityRole>()
-                .AddEntityFrameworkStores<CarListDbContext>();
-
-            var app = builder.Build();
-
-            // Configure the HTTP request pipeline.
-            if (app.Environment.IsDevelopment())
-            {
-                app.MapOpenApi();
-                app.MapScalarApiReference();
+                Console.WriteLine(">>> Η βάση δημιουργήθηκε και ο Admin προστέθηκε επιτυχώς!");
             }
-
-            // ΔΙΟΡΘΩΣΗ 2: ΑΠΕΝΕΡΓΟΠΟΙΟΥΜΕ το HttpsRedirection.
-            // Αυτό εμποδίζει το API να σε αναγκάζει να πας σε HTTPS (που μπλοκάρει το Android).
-            // app.UseHttpsRedirection(); 
-
-            app.UseCors("AllowAll");
-            app.UseAuthorization();
-
-            // --- ENDPOINTS ---
-
-            app.MapGet("/cars", async (CarListDbContext db) =>
-                await db.Cars.ToListAsync());
-
-            app.MapGet("/cars/{id}", async (int id, CarListDbContext db) =>
-                await db.Cars.FindAsync(id) is Car car ? Results.Ok(car) : Results.NotFound()
-            );
-
-            app.MapPut("/cars/{id}", async (int id, Car car, CarListDbContext db) => {
-                var record = await db.Cars.FindAsync(id);
-                if (record is null) return Results.NotFound();
-
-                record.Make = car.Make;
-                record.Model = car.Model;
-                record.Vin = car.Vin;
-
-                await db.SaveChangesAsync();
-                return Results.NoContent();
-            });
-
-            app.MapDelete("/cars/{id}", async (int id, CarListDbContext db) => {
-                var record = await db.Cars.FindAsync(id);
-                if (record is null) return Results.NotFound();
-                db.Cars.Remove(record);
-
-                await db.SaveChangesAsync();
-                return Results.NoContent();
-            });
-
-            app.MapPost("/cars", async (Car car, CarListDbContext db) => {
-                await db.AddAsync(car);
-                await db.SaveChangesAsync();
-                return Results.Created($"/cars/{car.Id}", car);
-            });
-
-            app.Run();
+        }
+        else
+        {
+            Console.WriteLine(">>> Η βάση είναι έτοιμη και ο Admin υπάρχει ήδη.");
         }
     }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"[ERROR] Πρόβλημα κατά την εκκίνηση της βάσης: {ex.Message}");
+    }
+}
+
+// --- MIDDLEWARE ---
+if (app.Environment.IsDevelopment())
+{
+    app.MapOpenApi();
+    app.MapScalarApiReference();
+}
+
+app.UseCors("AllowAll");
+app.UseAuthorization();
+
+// --- ENDPOINTS ---
+
+// 1. Get all cars
+app.MapGet("/cars", async (CarListDbContext db) =>
+    await db.Cars.ToListAsync());
+
+// 2. Login
+app.MapPost("/login", async (LoginDto loginDto, UserManager<IdentityUser> _userManager) =>
+{
+    if (loginDto == null || string.IsNullOrEmpty(loginDto.Username))
+        return Results.BadRequest("Missing credentials");
+
+    var user = await _userManager.FindByNameAsync(loginDto.Username);
+    if (user is null)
+        return Results.Unauthorized();
+
+    var isValidPassword = await _userManager.CheckPasswordAsync(user, loginDto.Password);
+
+    if (!isValidPassword)
+        return Results.Unauthorized();
+
+    return Results.Ok(new AuthResponseDto
+    {
+        UserId = user.Id,
+        Username = user.UserName,
+        Token = "Success_Token_123"
+    });
+});
+
+// 3. Post car
+app.MapPost("/cars", async (Car car, CarListDbContext db) => {
+    await db.Cars.AddAsync(car);
+    await db.SaveChangesAsync();
+    return Results.Created($"/cars/{car.Id}", car);
+});
+
+app.Run();
+
+// --- DTO CLASSES ---
+public class LoginDto
+{
+    public string Username { get; set; } = string.Empty;
+    public string Password { get; set; } = string.Empty;
+}
+
+public class AuthResponseDto
+{
+    public string UserId { get; set; } = string.Empty;
+    public string Username { get; set; } = string.Empty;
+    public string Token { get; set; } = string.Empty;
 }
