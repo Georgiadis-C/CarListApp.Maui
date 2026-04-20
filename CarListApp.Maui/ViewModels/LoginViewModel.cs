@@ -44,14 +44,13 @@ namespace CarListApp.Maui.ViewModels
 
             await DisplayLoginMessage(carApiService.StatusMessage);
 
-            // ✅ Check αν υπάρχει token
+
             if (string.IsNullOrWhiteSpace(response.Token))
             {
                 await DisplayLoginMessage("Invalid Login Attempt");
                 return;
             }
 
-            // ✅ Έλεγχος αν είναι valid JWT
             var handler = new JwtSecurityTokenHandler();
 
             if (!handler.CanReadToken(response.Token))
@@ -68,24 +67,24 @@ namespace CarListApp.Maui.ViewModels
                 return;
             }
 
-            // ✅ Πάρε safely τα claims
+
             var role = jsonToken.Claims
                 .FirstOrDefault(c => c.Type == ClaimTypes.Role)?.Value;
 
             var email = jsonToken.Claims
                 .FirstOrDefault(c => c.Type == ClaimTypes.Email)?.Value;
 
-            // ✅ Store token ΜΟΝΟ αν είναι valid
+
             await SecureStorage.SetAsync("Token", response.Token);
 
-            // ✅ Set user info
+
             App.UserInfo = new UserInfo()
             {
                 Username = email ?? Username,
                 Role = role ?? "User"
             };
             Debug.WriteLine($"ROLE FROM LOGIN: {role}");
-            // ✅ Build menu & navigate
+
             MenuBuilder.BuildMenu();
             await Shell.Current.GoToAsync($"{nameof(MainPage)}");
         }

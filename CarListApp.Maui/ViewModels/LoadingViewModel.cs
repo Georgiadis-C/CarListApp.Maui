@@ -23,7 +23,7 @@ namespace CarListApp.Maui.ViewModels
 
             var handler = new JwtSecurityTokenHandler();
 
-            // ❗ STEP 1: validate format
+
             if (!handler.CanReadToken(token))
             {
                 SecureStorage.Remove("Token");
@@ -33,7 +33,7 @@ namespace CarListApp.Maui.ViewModels
 
             var jsonToken = handler.ReadToken(token) as JwtSecurityToken;
 
-            // ❗ STEP 2: null safety
+
             if (jsonToken == null)
             {
                 SecureStorage.Remove("Token");
@@ -41,7 +41,7 @@ namespace CarListApp.Maui.ViewModels
                 return;
             }
 
-            // ❗ STEP 3: expiry check
+
             if (jsonToken.ValidTo < DateTime.UtcNow)
             {
                 SecureStorage.Remove("Token");
@@ -49,7 +49,7 @@ namespace CarListApp.Maui.ViewModels
                 return;
             }
 
-            // ✅ SAFE claims access
+
             var role = jsonToken.Claims.FirstOrDefault(c =>c.Type == ClaimTypes.Role ||c.Type == "role" || c.Type.EndsWith("/role"))?.Value ?? "User";
 
             var email = jsonToken.Claims

@@ -46,11 +46,11 @@ namespace CarListApp.Maui.ViewModels
             try
             {
                 IsLoading = true;
-                if (Cars.Any()) Cars.Clear(); // Καθαρίζουμε τη λίστα πριν τη γεμίσουμε
+                if (Cars.Any()) Cars.Clear(); 
 
                 var cars = await carApiService.GetCars();
 
-                // Εδώ είναι η σημαντική διόρθωση για να μη "σκάει" το app
+ 
                 if (cars != null && cars.Count > 0)
                 {
                     foreach (var car in cars)
@@ -194,7 +194,7 @@ namespace CarListApp.Maui.ViewModels
 
         private async Task ShowAlert(string message)
         {
-            await Shell.Current.DisplayAlert("Info", message, "Ok");
+            await Shell.Current.DisplayAlertAsync("Info", message, "Ok");
         }
     }
 }
