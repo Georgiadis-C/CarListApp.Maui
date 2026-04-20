@@ -1,49 +1,72 @@
-﻿using System;
-using System.Collections.Generic;
-using System.IdentityModel.Tokens.Jwt;
-using System.Text;
+﻿using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
+using CarListApp.Maui.Helpers;
+using CarListApp.Maui.Models;
 using CarListApp.Maui.Views;
+using MenuBuilder = CarListApp.Maui.Helpers.MenuBuilder;
 
 namespace CarListApp.Maui.ViewModels
 {
     public partial class LoadingViewModel : BaseViewModel
     {
-
-
         public async Task CheckUserLoginDetails()
         {
-            //Retrieve token from internal storage
             await Task.Delay(500);
 
             var token = await SecureStorage.GetAsync("Token");
 
-            if (string.IsNullOrEmpty(token))
+            if (string.IsNullOrWhiteSpace(token))
             {
-               await GoToLoginPage();
-            }
-            else
-            {
-                var jsonToken = new JwtSecurityTokenHandler().ReadToken(token) as JwtSecurityToken;
-                
-                if (jsonToken.ValidTo <DateTime.UtcNow)
-                {
-                    SecureStorage.Remove("Token");
-                    await GoToLoginPage();
-                }
-                else
-                {
-                    //Token is valid, go to main page
-                    await GoToMainPage();
-                }
+                await GoToLoginPage();
+                return;
             }
 
-            // Evaluate token and decide if valid
+            var handler = new JwtSecurityTokenHandler();
 
+            // ❗ STEP 1: validate format
+            if (!handler.CanReadToken(token))
+            {
+                SecureStorage.Remove("Token");
+                await GoToLoginPage();
+                return;
+            }
+
+            var jsonToken = handler.ReadToken(token) as JwtSecurityToken;
+
+            // ❗ STEP 2: null safety
+            if (jsonToken == null)
+            {
+                SecureStorage.Remove("Token");
+                await GoToLoginPage();
+                return;
+            }
+
+            // ❗ STEP 3: expiry check
+            if (jsonToken.ValidTo < DateTime.UtcNow)
+            {
+                SecureStorage.Remove("Token");
+                await GoToLoginPage();
+                return;
+            }
+
+            // ✅ SAFE claims access
+            var role = jsonToken.Claims.FirstOrDefault(c =>c.Type == ClaimTypes.Role ||c.Type == "role" || c.Type.EndsWith("/role"))?.Value ?? "User";
+
+            var email = jsonToken.Claims
+                .FirstOrDefault(c => c.Type == ClaimTypes.Email)?.Value?.ToLower();
+
+            App.UserInfo = new UserInfo()
+            {
+                Username = email,
+                Role = role
+            };
+
+            MenuBuilder.BuildMenu();
+            await GoToMainPage();
         }
 
         private async Task GoToLoginPage()
         {
-            // Το // είναι απαραίτητο για absolute routing
             await Shell.Current.GoToAsync($"{nameof(LoginPage)}");
         }
 

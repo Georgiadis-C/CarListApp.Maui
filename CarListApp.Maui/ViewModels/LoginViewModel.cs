@@ -1,8 +1,7 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Diagnostics;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
-using System.Text;
+using CarListApp.Maui.Helpers;
 using CarListApp.Maui.Models;
 using CarListApp.Maui.Services;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -12,71 +11,89 @@ namespace CarListApp.Maui.ViewModels
 {
     public partial class LoginViewModel : BaseViewModel
     {
+        private readonly CarApiService carApiService;
+
         public LoginViewModel(CarApiService carApiService)
         {
-             this.carApiService = carApiService;
+            this.carApiService = carApiService;
         }
 
-        private readonly CarApiService carApiService;
         [ObservableProperty]
         string username;
+
         [ObservableProperty]
         string password;
 
         [RelayCommand]
         async Task Login()
         {
-            if(string.IsNullOrEmpty(username) || string.IsNullOrEmpty(password))
+            if (string.IsNullOrWhiteSpace(Username) || string.IsNullOrWhiteSpace(Password))
             {
                 await DisplayLoginMessage("Invalid Login Attempt");
+                return;
             }
-            else
+
+            var loginModel = new LoginModel(Username, Password);
+            var response = await carApiService.Login(loginModel);
+
+            if (response == null)
             {
-                //Call API to attempt a login
-                var loginModel = new LoginModel(username, password);
-
-                var response = await carApiService.Login(loginModel);
-
-                if (response == null)
-                {
-                    await DisplayLoginMessage(carApiService.StatusMessage);
-                    return;
-                }
-
-                //Display message
                 await DisplayLoginMessage(carApiService.StatusMessage);
-                
-                if (!string.IsNullOrEmpty(response.Token))
-                {
-                    //Store the token in secure storage
-                    await SecureStorage.SetAsync("Token", response.Token);
-
-                    //Build a menu on the fly based on the user role
-                    var jsonToken = new JwtSecurityTokenHandler().ReadToken(response.Token) as JwtSecurityToken;
-
-                    var role = jsonToken.Claims.FirstOrDefault(c => c.Type.Equals(ClaimTypes.Role))?.Value;
-
-                    App.UserInfo = new UserInfo()
-                    {
-                        Username = Username,
-                        Role = role
-                    };
-
-                    //Navigate to the app's main page
-                    await Shell.Current.GoToAsync($"{nameof(MainPage)}");
-                }
-                else
-                {
-                    await DisplayLoginMessage("Invalid Login Attempt");
-                }
+                return;
             }
+
+            await DisplayLoginMessage(carApiService.StatusMessage);
+
+            // ✅ Check αν υπάρχει token
+            if (string.IsNullOrWhiteSpace(response.Token))
+            {
+                await DisplayLoginMessage("Invalid Login Attempt");
+                return;
+            }
+
+            // ✅ Έλεγχος αν είναι valid JWT
+            var handler = new JwtSecurityTokenHandler();
+
+            if (!handler.CanReadToken(response.Token))
+            {
+                await DisplayLoginMessage("Invalid Token");
+                return;
+            }
+
+            var jsonToken = handler.ReadToken(response.Token) as JwtSecurityToken;
+
+            if (jsonToken == null)
+            {
+                await DisplayLoginMessage("Token parsing failed");
+                return;
+            }
+
+            // ✅ Πάρε safely τα claims
+            var role = jsonToken.Claims
+                .FirstOrDefault(c => c.Type == ClaimTypes.Role)?.Value;
+
+            var email = jsonToken.Claims
+                .FirstOrDefault(c => c.Type == ClaimTypes.Email)?.Value;
+
+            // ✅ Store token ΜΟΝΟ αν είναι valid
+            await SecureStorage.SetAsync("Token", response.Token);
+
+            // ✅ Set user info
+            App.UserInfo = new UserInfo()
+            {
+                Username = email ?? Username,
+                Role = role ?? "User"
+            };
+            Debug.WriteLine($"ROLE FROM LOGIN: {role}");
+            // ✅ Build menu & navigate
+            MenuBuilder.BuildMenu();
+            await Shell.Current.GoToAsync($"{nameof(MainPage)}");
         }
 
-         async Task DisplayLoginMessage(string message)
+        async Task DisplayLoginMessage(string message)
         {
             await Shell.Current.DisplayAlertAsync("Login Attempt Result", message, "OK");
             Password = string.Empty;
         }
-
     }
 }
